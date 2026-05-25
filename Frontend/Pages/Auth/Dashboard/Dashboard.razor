@@ -1,0 +1,309 @@
+@page "/dashboard"
+
+@using Frontend.Models.Auth
+@using Frontend.Services.Auth
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject AuthApiService AuthService
+@inject NavigationManager Navigation
+
+<div class="profile-page">
+    @if (isLoading)
+    {
+        <div class="profile-content">
+            <main class="right-card">
+                <p>Cargando usuario...</p>
+            </main>
+        </div>
+    }
+    else
+    {
+        <section class="cover-section">
+            <img class="cover-image" src="@coverPreviewUrl" alt="Cover" />
+
+            <InputFile OnChange="OnCoverChanged" accept="image/*" id="coverInput" style="display:none" />
+            <label for="coverInput" class="cover-edit-btn">Editar portada</label>
+        </section>
+
+        <section class="profile-header">
+            <div class="profile-photo-wrap">
+                <img class="profile-photo" src="@profilePreviewUrl" alt="Perfil" />
+
+                <InputFile OnChange="OnProfileChanged" accept="image/*" id="profileInput" style="display:none" />
+                <label for="profileInput" class="profile-photo-edit-btn">+</label>
+            </div>
+
+            <div class="profile-main">
+                <h1>@displayName</h1>
+                <p>@(currentProfile?.Email ?? "correo@ejemplo.com")</p>
+                @if (!string.IsNullOrWhiteSpace(bio))
+                {
+                    <p class="bio-line">@bio</p>
+                }
+            </div>
+
+            <div class="profile-actions">
+                <button class="btn-primary">Dashboard</button>
+                <button class="btn-secondary" @onclick="OpenEditProfileModal">Editar perfil</button>
+                <button class="btn-ghost" @onclick="HandleLogout">Cerrar sesion</button>
+            </div>
+        </section>
+
+        <nav class="profile-tabs">
+            <a class="active">Publicaciones</a>
+            <a>Informacion</a>
+            <a>Fotos</a>
+            <a>Amigos</a>
+        </nav>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <div class="profile-content">
+                <main class="right-card">
+                    <p>@statusMessage</p>
+                </main>
+            </div>
+        }
+
+        <section class="profile-content">
+            <aside class="left-card">
+                <h3>Detalles</h3>
+                <p>Ciudad: @city</p>
+                <p>Estado: @userStatus</p>
+            </aside>
+
+            <main class="right-card">
+                <div class="composer">
+                    <input placeholder="Que estas pensando?" />
+                    <button>Publicar</button>
+                </div>
+
+                <article class="post">
+                    <h4>Primera publicacion</h4>
+                    <p>Esta es la base del nuevo dashboard estilo perfil.</p>
+                </article>
+            </main>
+        </section>
+    }
+</div>
+
+@if (showEditProfileModal)
+{
+    <div class="modal-backdrop" @onclick="CloseEditProfileModal">
+        <div class="edit-modal" @onclick:stopPropagation="true">
+            <div class="edit-modal-header">
+                <h3>Editar perfil</h3>
+                <button class="modal-close-btn" @onclick="CloseEditProfileModal">&times;</button>
+            </div>
+
+            <div class="edit-modal-body">
+                <div class="edit-field">
+                    <label>Nombre visible</label>
+                    <InputText class="form-control" @bind-Value="editDisplayName" />
+                </div>
+
+                <div class="edit-field">
+                    <label>Bio</label>
+                    <InputTextArea class="form-control" @bind-Value="editBio" />
+                </div>
+
+                <div class="edit-field">
+                    <label>Ciudad</label>
+                    <InputText class="form-control" @bind-Value="editCity" />
+                </div>
+
+                <div class="edit-field">
+                    <label>Estado</label>
+                    <InputText class="form-control" @bind-Value="editUserStatus" />
+                </div>
+            </div>
+
+            <div class="edit-modal-footer">
+                <button class="btn-ghost" @onclick="CloseEditProfileModal">Cancelar</button>
+                <button class="btn-primary" @onclick="SaveProfileChanges">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ProfileResponse? currentProfile;
+    private string statusMessage = string.Empty;
+    private bool isLoading = true;
+
+    private string coverPreviewUrl = "/img/primari.png";
+    private string profilePreviewUrl = "/img/candadito.png";
+
+    private string displayName = "Usuario";
+    private string bio = string.Empty;
+    private string city = "No definida";
+    private string userStatus = "Activo";
+
+    private bool showEditProfileModal;
+
+    private string editDisplayName = string.Empty;
+    private string editBio = string.Empty;
+    private string editCity = string.Empty;
+    private string editUserStatus = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!await AuthService.IsAuthenticated())
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            var response = await AuthService.GetProfile();
+
+            if (!response.Success || response.Data is null)
+            {
+                statusMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No se pudo cargar el perfil. Vuelve a iniciar sesion."
+                    : response.Message;
+                await AuthService.Logout();
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            ApplyProfileData(response.Data);
+            statusMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error cargando perfil: {ex.Message}";
+            Navigation.NavigateTo("/login");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ApplyProfileData(ProfileResponse profile)
+    {
+        currentProfile = profile;
+
+        displayName = string.IsNullOrWhiteSpace(profile.FullName)
+            ? "Usuario"
+            : profile.FullName;
+
+        bio = profile.Bio ?? string.Empty;
+        city = string.IsNullOrWhiteSpace(profile.City) ? "No definida" : profile.City;
+        userStatus = string.IsNullOrWhiteSpace(profile.StatusMessage) ? "Activo" : profile.StatusMessage;
+
+        if (!string.IsNullOrWhiteSpace(profile.CoverPhotoUrl))
+        {
+            coverPreviewUrl = AuthService.ResolveAssetUrl(profile.CoverPhotoUrl);
+        }
+
+        if (!string.IsNullOrWhiteSpace(profile.ProfilePhotoUrl))
+        {
+            profilePreviewUrl = AuthService.ResolveAssetUrl(profile.ProfilePhotoUrl);
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.Logout();
+        Navigation.NavigateTo("/login");
+    }
+
+    private void OpenEditProfileModal()
+    {
+        editDisplayName = displayName;
+        editBio = bio;
+        editCity = city == "No definida" ? string.Empty : city;
+        editUserStatus = userStatus;
+
+        showEditProfileModal = true;
+    }
+
+    private void CloseEditProfileModal()
+    {
+        showEditProfileModal = false;
+    }
+
+    private async Task SaveProfileChanges()
+    {
+        var request = new UpdateProfileRequest
+        {
+            FullName = string.IsNullOrWhiteSpace(editDisplayName) ? "Usuario" : editDisplayName.Trim(),
+            Bio = editBio?.Trim() ?? string.Empty,
+            City = string.IsNullOrWhiteSpace(editCity) ? string.Empty : editCity.Trim(),
+            StatusMessage = string.IsNullOrWhiteSpace(editUserStatus) ? "Activo" : editUserStatus.Trim()
+        };
+
+        var response = await AuthService.UpdateProfile(request);
+
+        if (!response.Success || response.Data is null)
+        {
+            statusMessage = string.IsNullOrWhiteSpace(response.Message)
+                ? "No se pudo actualizar el perfil."
+                : response.Message;
+            return;
+        }
+
+        ApplyProfileData(response.Data);
+        showEditProfileModal = false;
+        statusMessage = "Perfil actualizado.";
+    }
+
+    private async Task OnCoverChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await AuthService.UploadCoverPhoto(file);
+            if (!response.Success || response.Data is null)
+            {
+                statusMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No se pudo subir la portada."
+                    : response.Message;
+                return;
+            }
+
+            ApplyProfileData(response.Data);
+            statusMessage = "Portada actualizada.";
+        }
+        catch
+        {
+            statusMessage = "No se pudo cargar la portada. Revisa el formato o tamano del archivo.";
+        }
+    }
+
+    private async Task OnProfileChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await AuthService.UploadProfilePhoto(file);
+            if (!response.Success || response.Data is null)
+            {
+                statusMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? "No se pudo subir la foto de perfil."
+                    : response.Message;
+                return;
+            }
+
+            ApplyProfileData(response.Data);
+            statusMessage = "Foto de perfil actualizada.";
+        }
+        catch
+        {
+            statusMessage = "No se pudo cargar la foto de perfil. Revisa el formato o tamano del archivo.";
+        }
+    }
+}

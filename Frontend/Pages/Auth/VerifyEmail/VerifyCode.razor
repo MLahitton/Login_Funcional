@@ -1,0 +1,9 @@
+@page "/verify-code"
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/register", replace: true);
+    }
+}

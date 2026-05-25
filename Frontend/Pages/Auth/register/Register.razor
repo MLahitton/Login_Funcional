@@ -1,0 +1,98 @@
+@using Frontend.Models.Auth
+@using Frontend.Services.Auth
+
+@page "/register"
+@inject AuthApiService AuthService
+@inject NavigationManager Navigation
+
+<div class="register-container">
+    <div class="left-panel">
+        <img src="/img/primari.png" class="illustration" />
+        <h3>Seguro y confiable</h3>
+        <p>Protegemos tus datos con los mas altos estandares.</p>
+    </div>
+
+    <div class="right-panel">
+        <h1>Crea tu cuenta</h1>
+        <p>Crea tu cuenta con correo y contrasena. Entraras directo al dashboard.</p>
+        <p class="password-hint">Contrasena: minimo 8 caracteres, mayuscula, minuscula, numero y simbolo (ej: MiaClave1!).</p>
+
+        <EditForm Model="registerModel" OnValidSubmit="HandleRegister">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="status-message" />
+
+            <div class="form-group">
+                <label>Nombre completo</label>
+                <InputText class="form-control" @bind-Value="registerModel.FullName" />
+                <ValidationMessage For="@(() => registerModel.FullName)" />
+            </div>
+
+            <div class="form-group">
+                <label>Email</label>
+                <InputText class="form-control" @bind-Value="registerModel.Email" />
+                <ValidationMessage For="@(() => registerModel.Email)" />
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <InputText type="password" class="form-control" @bind-Value="registerModel.Password" />
+                <ValidationMessage For="@(() => registerModel.Password)" />
+            </div>
+
+            <button class="register-button" type="submit" disabled="@isLoading">
+                @(isLoading ? "Creando..." : "Crear cuenta")
+            </button>
+        </EditForm>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <p class="status-message" style="margin-top: 15px;">@statusMessage</p>
+        }
+
+        <p style="margin-top:15px;">
+            Ya tienes una cuenta?
+            <a href="/login">Iniciar sesion</a>
+        </p>
+    </div>
+</div>
+
+@code {
+    private readonly RegisterRequest registerModel = new();
+    private string statusMessage = string.Empty;
+    private bool isLoading;
+
+    private async Task HandleRegister()
+    {
+        try
+        {
+            isLoading = true;
+            statusMessage = string.Empty;
+            await InvokeAsync(StateHasChanged);
+
+            var response = await AuthService.Register(registerModel);
+
+            if (response.Success &&
+                response.Data is not null &&
+                !string.IsNullOrWhiteSpace(response.Data.AccessToken))
+            {
+                Navigation.NavigateTo("/dashboard");
+                return;
+            }
+
+            statusMessage = string.IsNullOrWhiteSpace(response.Message)
+                ? "No se pudo crear la cuenta. Corrige los datos del formulario."
+                : response.Message;
+        }
+        catch (Exception ex)
+        {
+            statusMessage =
+                $"No se pudo conectar con el API: {ex.Message}. " +
+                "Inicia el API (http://localhost:5000 o https://localhost:5001) y abre el frontend en http://localhost:5126 si usas HTTP.";
+        }
+        finally
+        {
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

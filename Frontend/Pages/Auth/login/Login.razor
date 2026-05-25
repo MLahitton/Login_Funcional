@@ -1,0 +1,195 @@
+@using Frontend.Models.Auth
+@using Frontend.Services.Auth
+
+@page "/login"
+@inject AuthApiService AuthService
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject IJSRuntime JS
+
+<div class="register-container">
+    <div class="left-panel">
+        <img src="/img/candadito.png" class="illustration" />
+        <h3>Explora lo que mas te gusta</h3>
+        <p>Usamos cifrado en todas tus conexiones.</p>
+    </div>
+
+    <div class="right-panel">
+        <h1>Bienvenido de nuevo</h1>
+        <p>Ingresa para continuar a tu cuenta.</p>
+
+        <EditForm Model="model" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="status-message" />
+
+            <div class="form-group">
+                
+                <InputText class="form-control" placeholder="Correo Electronico" aria-lable="Correo Electronico" @bind-Value="model.Email" />
+                <ValidationMessage For="@(() => model.Email)" />
+            </div>
+
+            <div class="form-group">
+                
+                <InputText type="password" class="form-control" placeholder="Contraseña" @bind-Value="model.Password" />
+                <ValidationMessage For="@(() => model.Password)" />
+            </div>
+
+            <p class="forgot-password">
+                <a href="/forgot-password">Olvidaste tu contrasena?</a>
+            </p>
+
+            <button class="register-button" type="submit" disabled="@isEmailLoading">
+                @(isEmailLoading ? "Ingresando..." : "Iniciar sesion")
+            </button>
+        </EditForm>
+
+        <button class="facebook-button" type="button" disabled="@isFacebookLoading" @onclick="HandleFacebookLogin">
+            @(isFacebookLoading ? "Conectando..." : "Continuar con Facebook")
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <p class="status-message" style="margin-top: 15px;">@statusMessage</p>
+        }
+
+        <p style="margin-top:15px;">
+            <a class="create-acc-btn" href="/register">Crea una nueva cuenta</a>
+        </p>
+    </div>
+</div>
+
+@code {
+    private readonly LoginRequest model = new();
+    private string statusMessage = string.Empty;
+    private bool isEmailLoading;
+    private bool isFacebookLoading;
+    private string? facebookAppId;
+
+    protected override void OnInitialized()
+    {
+        facebookAppId = Configuration["Facebook:AppId"];
+    }
+
+    private async Task EnsureFacebookScriptAsync()
+    {
+        await JS.InvokeVoidAsync("eval", """
+            window.__loadFacebookAuth = window.__loadFacebookAuth || function () {
+                return new Promise(function (resolve, reject) {
+                    if (window.facebookAuth) { resolve(); return; }
+                    if (document.getElementById('facebook-auth-script')) {
+                        var check = setInterval(function () {
+                            if (window.facebookAuth) { clearInterval(check); resolve(); }
+                        }, 50);
+                        setTimeout(function () { clearInterval(check); reject('Timeout Facebook SDK'); }, 10000);
+                        return;
+                    }
+                    var s = document.createElement('script');
+                    s.id = 'facebook-auth-script';
+                    s.src = 'js/facebookAuth.js';
+                    s.async = true;
+                    s.onload = function () { resolve(); };
+                    s.onerror = function () { reject('No se pudo cargar facebookAuth.js'); };
+                    document.body.appendChild(s);
+                });
+            };
+            """);
+
+        await JS.InvokeVoidAsync("__loadFacebookAuth");
+    }
+
+    private async Task HandleFacebookLogin()
+    {
+        if (string.IsNullOrWhiteSpace(facebookAppId))
+        {
+            statusMessage = "Facebook no esta configurado en el frontend (wwwroot/appsettings.json).";
+            return;
+        }
+
+        try
+        {
+            isFacebookLoading = true;
+            statusMessage = string.Empty;
+            await InvokeAsync(StateHasChanged);
+
+            await EnsureFacebookScriptAsync();
+            var accessToken = await JS.InvokeAsync<string>("facebookAuth.login", facebookAppId);
+
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                statusMessage = "Facebook no devolvio un token. Intenta de nuevo.";
+                return;
+            }
+
+            var response = await AuthService.FacebookLogin(new FacebookLoginRequest
+            {
+                AccessToken = accessToken
+            });
+
+            if (response.Success &&
+                response.Data is not null &&
+                !string.IsNullOrWhiteSpace(response.Data.AccessToken))
+            {
+                Navigation.NavigateTo("/dashboard");
+                return;
+            }
+
+            statusMessage = string.IsNullOrWhiteSpace(response.Message)
+                ? "No se pudo iniciar sesion con Facebook. Verifica que el API este corriendo (dotnet run --project Api/Api.csproj)."
+                : response.Message;
+        }
+        catch (JSException ex)
+        {
+            statusMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Inicio de sesion con Facebook cancelado."
+                : ex.Message;
+        }
+        catch (TaskCanceledException)
+        {
+            statusMessage = "Inicio de sesion con Facebook cancelado.";
+        }
+        catch (Exception ex)
+        {
+            statusMessage = ex.Message.StartsWith("Error con Facebook", StringComparison.Ordinal)
+                ? ex.Message
+                : $"Error con Facebook: {ex.Message}";
+        }
+        finally
+        {
+            isFacebookLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        try
+        {
+            isEmailLoading = true;
+            statusMessage = string.Empty;
+            await InvokeAsync(StateHasChanged);
+
+            var response = await AuthService.Login(model);
+
+            if (response.Success &&
+                response.Data is not null &&
+                !string.IsNullOrWhiteSpace(response.Data.AccessToken))
+            {
+                Navigation.NavigateTo("/dashboard");
+                return;
+            }
+
+            statusMessage = string.IsNullOrWhiteSpace(response.Message)
+                ? "Correo o contrasena incorrectos. Si te registraste con Facebook, usa ese boton."
+                : response.Message;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error al iniciar sesion: {ex.Message}";
+        }
+        finally
+        {
+            isEmailLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

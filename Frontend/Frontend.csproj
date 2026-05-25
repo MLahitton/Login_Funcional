@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- Evita 404 al recargar sin reiniciar dotnet run tras cada build -->
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.8" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Workaround for MSBuild task-host launch failures (MSB4216) on some SDK builds. -->
+  <PropertyGroup>
+    <_WasmSdkTasksAssembly>$(NuGetPackageRoot)microsoft.net.sdk.webassembly.pack\10.0.6\tools\net10.0\Microsoft.NET.Sdk.WebAssembly.Pack.Tasks.dll</_WasmSdkTasksAssembly>
+  </PropertyGroup>
+
+  <UsingTask TaskName="Microsoft.NET.Sdk.WebAssembly.GenerateWasmBootJson" AssemblyFile="$(_WasmSdkTasksAssembly)" Override="true" Condition="Exists('$(_WasmSdkTasksAssembly)')" />
+  <UsingTask TaskName="Microsoft.NET.Sdk.WebAssembly.ComputeWasmBuildAssets" AssemblyFile="$(_WasmSdkTasksAssembly)" Override="true" Condition="Exists('$(_WasmSdkTasksAssembly)')" />
+  <UsingTask TaskName="Microsoft.NET.Sdk.WebAssembly.ComputeWasmPublishAssets" AssemblyFile="$(_WasmSdkTasksAssembly)" Override="true" Condition="Exists('$(_WasmSdkTasksAssembly)')" />
+  <UsingTask TaskName="Microsoft.NET.Sdk.WebAssembly.ConvertDllsToWebCil" AssemblyFile="$(_WasmSdkTasksAssembly)" Override="true" Condition="Exists('$(_WasmSdkTasksAssembly)')" />
+
+</Project>

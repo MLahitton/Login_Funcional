@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Frontend</title>
+    <base href="/" />
+    <link rel="preload" id="webassembly" />
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="Frontend.styles.css" rel="stylesheet" />
+    <script type="importmap"></script>
+</head>
+
+<body>
+    <div id="app">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <div id="blazor-error-ui">
+        No se pudo cargar la aplicacion. Deten el frontend, ejecuta <code>dotnet build</code> y vuelve a <code>dotnet run</code>. Luego Ctrl+Shift+R.
+        <a href="." class="reload">Recargar</a>
+        <span class="dismiss">🗙</span>
+    </div>
+    <script>
+        (function () {
+            var loadTimeout = window.setTimeout(function () {
+                var app = document.getElementById("app");
+                var hasContent = app && app.querySelector(".register-container, .verify-container, .profile-page, h1");
+                if (!hasContent) {
+                    var ui = document.getElementById("blazor-error-ui");
+                    if (ui) ui.style.display = "block";
+                }
+            }, 45000);
+            window.addEventListener("blazor:ready", function () { window.clearTimeout(loadTimeout); });
+        })();
+    </script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+</body>
+
+</html>
