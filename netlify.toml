@@ -1,0 +1,4 @@
+[build]
+  command = "dotnet publish Frontend/Frontend.csproj -c Release"
+  publish = "Frontend/bin/Release/net10.0/publish/wwwroot"
+
